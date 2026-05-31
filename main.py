@@ -13,7 +13,7 @@ import sys
 import traceback
 import queue
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 # ── 1. 从 manifest.json 读取完整 manifest ──

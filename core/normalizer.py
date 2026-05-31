@@ -6,9 +6,14 @@ core/normalizer.py — 文本归一化
 处理顺序：小写 → 去噪 → 去重 → 同音字映射 → 拼音/缩写映射
 """
 import re
+import sys
 from pathlib import Path
 
-_PLUGIN_DIR = Path(__file__).resolve().parent.parent
+# PyInstaller 兼容
+if getattr(sys, 'frozen', False):
+    _PLUGIN_DIR = Path(sys.executable).parent
+else:
+    _PLUGIN_DIR = Path(__file__).resolve().parent.parent
 
 # ── 同音字映射表 ──
 _HOMOPHONE_MAP = {

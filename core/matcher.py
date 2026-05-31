@@ -7,11 +7,16 @@ core/matcher.py — 词库匹配
 - 白名单优先：命中白名单的词绝对不触发
 """
 import re
+import sys
 import traceback
 from pathlib import Path
 from core.normalizer import normalize, normalize_word
 
-_PLUGIN_DIR   = Path(__file__).resolve().parent.parent
+# PyInstaller 兼容
+if getattr(sys, 'frozen', False):
+    _PLUGIN_DIR   = Path(sys.executable).parent
+else:
+    _PLUGIN_DIR   = Path(__file__).resolve().parent.parent
 _BADWORDS_DIR = _PLUGIN_DIR / "badwords"
 
 
