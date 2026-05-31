@@ -68,7 +68,7 @@ class MicCapture(threading.Thread):
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
                                 dtype="float32", blocksize=BLOCK_SAMPLES,
                                 device=device) as stream:
-                self._status("ok", f"麦克风已启动, {SAMPLE_RATE}Hz")
+                self._status("info", f"麦克风已启动, {SAMPLE_RATE}Hz")
                 self._loop(stream, np)
         except Exception as e:
             self._status("error", f"麦克风采集异常: {e}")
