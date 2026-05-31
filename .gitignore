@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DGHub 本地测试残留
+*.log
+
+# 开发文档（本地保留，不上传 GitHub）
+AGENT.md
+PLUGIN_DEVELOPMENT.md

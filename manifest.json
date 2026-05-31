@@ -1,0 +1,120 @@
+{
+  "id": "badwordshock",
+  "name": "说脏话会被电！",
+  "version": "0.1.0",
+  "sdk": "1",
+  "author": "wanchudao",
+  "description": "麦克风实时监听，说脏话立刻被电一下。支持词库匹配、变体兼容、AI 智能判断。",
+  "entry": "start.bat",
+  "config_schema": [
+    {
+      "section": "基础",
+      "fields": [
+        { "key": "enabled",  "type": "bool",    "label": "启用监听",                "default": true },
+        { "key": "channel",  "type": "channel", "label": "电击通道",                "default": "both" },
+        { "key": "preset",   "type": "select",  "label": "波形预设",  "default": "CS2-受伤", "description": "命中脏话时播放的波形",
+          "options": [
+            {"label": "CS2-受伤",   "value": "CS2-受伤"},
+            {"label": "CS2-闪光",   "value": "CS2-闪光"},
+            {"label": "CS2-烟雾",   "value": "CS2-烟雾"},
+            {"label": "CS2-燃烧",   "value": "CS2-燃烧"},
+            {"label": "CS2-死亡",   "value": "CS2-死亡"},
+            {"label": "呼吸",       "value": "呼吸"},
+            {"label": "潮汐",       "value": "潮汐"},
+            {"label": "连击",       "value": "连击"},
+            {"label": "快速按钮",   "value": "快速按钮"},
+            {"label": "按捏渐强",   "value": "按捏渐强"},
+            {"label": "心跳节奏",   "value": "心跳节奏"},
+            {"label": "压缩",       "value": "压缩"},
+            {"label": "节奏步伐",   "value": "节奏步伐"},
+            {"label": "颗粒摩擦",   "value": "颗粒摩擦"},
+            {"label": "渐变弹跳",   "value": "渐变弹跳"},
+            {"label": "波浪连涌",   "value": "波浪连涌"},
+            {"label": "雨水冲刷",   "value": "雨水冲刷"},
+            {"label": "变速敲击",   "value": "变速敲击"},
+            {"label": "信号灯",     "value": "信号灯"},
+            {"label": "挑逗1",      "value": "挑逗1"},
+            {"label": "挑逗2",      "value": "挑逗2"}
+          ]
+        }
+      ]
+    },
+    {
+      "section": "电击参数",
+      "fields": [
+        { "key": "delta_pct",   "type": "percent",  "label": "单次电击强度增量", "default": 40,  "description": "在 baseline 基础上 +X%，触发结束自动回正" },
+        { "key": "duration_s",  "type": "duration", "label": "电击持续秒数",     "default": 2.0, "min": 0.2, "max": 10,  "step": 0.1 },
+        { "key": "cooldown_s",  "type": "duration", "label": "触发冷却（秒）",   "default": 1.0, "min": 0.0, "max": 30,  "step": 0.1, "description": "两次电击之间的最短间隔，防刷" },
+        { "key": "trigger_action", "type": "select", "label": "触发动作", "default": "both",
+          "options": [
+            {"label": "强度 + 波形（推荐）", "value": "both"},
+            {"label": "仅强度",               "value": "strength"},
+            {"label": "仅波形",               "value": "waveform"}
+          ],
+          "description": "both=强度+波形一起发；strength=只调强度不播波形（不需要预设）；waveform=只播波形不改强度"
+        }
+      ]
+    },
+    {
+      "section": "词库匹配",
+      "fields": [
+        { "key": "use_default_zh",        "type": "bool", "label": "启用内置中文词库",  "default": true },
+        { "key": "use_default_en",        "type": "bool", "label": "启用内置英文词库",  "default": true },
+        { "key": "use_pinyin_alias",      "type": "bool", "label": "拼音/缩写映射",     "default": true,  "description": "如 sb→傻逼、nmsl→你妈死了" },
+        { "key": "use_variant_normalize", "type": "bool", "label": "变体归一化",        "default": true,  "description": "去标点、去重复字、同音字归一" },
+        { "key": "custom_words",          "type": "text", "label": "自定义脏话词",      "default": "",    "description": "逗号/空格分隔" },
+        { "key": "use_default_whitelist", "type": "bool", "label": "启用内置白名单",    "default": true,  "description": "包含「我去/操作/干嘛」等易误伤词" },
+        { "key": "exclude_words",         "type": "text", "label": "自定义排除词",      "default": "",    "description": "追加到白名单的词，绝不命中" }
+      ]
+    },
+    {
+      "section": "语音识别",
+      "fields": [
+        { "key": "asr_model",    "type": "select", "label": "Whisper 模型大小", "default": "medium",
+          "options": [
+            {"label": "tiny（最快）",    "value": "tiny"},
+            {"label": "base",            "value": "base"},
+            {"label": "small",           "value": "small"},
+            {"label": "medium（推荐）",   "value": "medium"},
+            {"label": "large-v3（最准）", "value": "large-v3"}
+          ]},
+        { "key": "asr_language",  "type": "select", "label": "识别语言", "default": "zh",
+          "options": [
+            {"label": "中文",   "value": "zh"},
+            {"label": "英文",   "value": "en"},
+            {"label": "日文",   "value": "ja"},
+            {"label": "自动检测", "value": "auto"}
+          ]},
+        { "key": "asr_beam_size", "type": "number", "label": "Beam Size",    "default": 5, "min": 1, "max": 10, "step": 1 },
+        { "key": "use_anti_censor_prompt", "type": "bool", "label": "反审查 Prompt", "default": true, "description": "避免 Whisper 把脏话识别成委婉词" },
+        { "key": "preload_model", "type": "bool", "label": "启动时预加载模型", "default": true },
+        { "key": "vad_threshold", "type": "number", "label": "VAD 音量阈值（RMS）", "default": 0.012, "min": 0.001, "max": 0.2, "step": 0.001 },
+        { "key": "mic_device",    "type": "text",   "label": "麦克风设备名（留空=默认）", "default": "" }
+      ]
+    },
+    {
+      "section": "AI 判断",
+      "fields": [
+        { "key": "judge_mode",  "type": "select", "label": "判断模式", "default": "wordlist_only",
+          "options": [
+            {"label": "仅词库（默认）",       "value": "wordlist_only"},
+            {"label": "词库 + AI 兜底",      "value": "wordlist_then_ai"},
+            {"label": "仅 AI",               "value": "ai_only"}
+          ]},
+        { "key": "ai_backend",  "type": "select", "label": "AI 后端", "default": "detoxify",
+          "options": [
+            {"label": "Detoxify（轻量）", "value": "detoxify"},
+            {"label": "本地 LLM（更准）",  "value": "local_llm"}
+          ]},
+        { "key": "ai_threshold",      "type": "percent", "label": "AI 判断阈值",  "default": 70 },
+        { "key": "local_llm_model",   "type": "text",    "label": "本地 LLM 模型名", "default": "Qwen/Qwen2.5-3B-Instruct" }
+      ]
+    },
+    {
+      "section": "调试",
+      "fields": [
+        { "key": "log_recognized_text", "type": "bool", "label": "记录每次识别结果到日志", "default": true }
+      ]
+    }
+  ]
+}

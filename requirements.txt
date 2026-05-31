@@ -1,0 +1,15 @@
+# ===== 必需依赖 =====
+# 缺少以下任何一个，插件无法启动
+websockets
+numpy
+sounddevice
+faster-whisper
+
+# ===== 可选依赖 =====
+# AI 判断 - Detoxify 后端（轻量），不需要 AI 判断可不装
+detoxify
+
+# AI 判断 - 本地 LLM 后端（需数 GB 显存/内存），不需要 AI 判断可不装
+# transformers
+# torch
+# accelerate
