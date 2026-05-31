@@ -79,7 +79,6 @@ class MicCapture(threading.Thread):
         voiced_ms = silence_ms = 0
         in_speech = False
         frame_count = 0
-        _reported = False
 
         while not self._stop.is_set():
             cfg       = self.get_cfg()
@@ -105,11 +104,10 @@ class MicCapture(threading.Thread):
             pcm = data[:, 0] if data.ndim > 1 else data.flatten()
             rms = float(np.sqrt(np.mean(pcm * pcm) + 1e-12))
 
-            # 前 100 帧后汇报一次 RMS，方便诊断
+            # 每 100 帧（~3 秒）汇报一次 RMS
             frame_count += 1
-            if not _reported and frame_count >= 100:
+            if frame_count % 100 == 0:
                 self._status("info", f"麦克风 RMS: {rms:.6f} (阈值: {threshold})")
-                _reported = True
 
             if rms >= threshold:
                 in_speech = True

@@ -89,15 +89,11 @@ class ASREngine:
             kwargs["initial_prompt"] = prompt
 
         audio = audio.astype(np.float32)
-        try:
-            segments, info = self._model.transcribe(audio, **kwargs)
-            text = "".join(seg.text for seg in segments).strip()
-            if self.config.get("log_recognized_text", True):
-                lp = getattr(info, "language", "?")
-                pp = getattr(info, "language_probability", 0)
-                gpu = "GPU" if self._on_gpu else "CPU"
-                print(f"[asr] {text!r} | 语言:{lp}({pp:.2f}) | {self._model_name} | {gpu}")
-            return text
-        except Exception as e:
-            print(f"[asr] 识别出错: {e}")
-            return ""
+        segments, info = self._model.transcribe(audio, **kwargs)
+        text = "".join(seg.text for seg in segments).strip()
+        if self.config.get("log_recognized_text", True):
+            lp = getattr(info, "language", "?")
+            pp = getattr(info, "language_probability", 0)
+            gpu = "GPU" if self._on_gpu else "CPU"
+            print(f"[asr] {text!r} | 语言:{lp}({pp:.2f}) | {self._model_name} | {gpu}")
+        return text
