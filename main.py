@@ -42,6 +42,7 @@ class Plugin:
         self.asr = None
         self.mic = None
         self.q: queue.Queue = queue.Queue(maxsize=8)
+        self.mic_status: queue.Queue = queue.Queue()  # 麦克风线程状态上报
         self._model_ok = False
         self._done = False
 
@@ -109,12 +110,12 @@ class Plugin:
     def _load_mic(self) -> bool:
         try:
             from core.mic_capture import MicCapture
-            self.mic = MicCapture(utter_q=self.q, get_cfg=lambda: self.cfg)
+            self.mic = MicCapture(utter_q=self.q, get_cfg=lambda: self.cfg,
+                                  status_q=self.mic_status)
             self.mic.start()
-            print("[main] 麦克风已启动")
             return True
         except ImportError as e:
-            print(f"[main] 麦克风不可用: {e}")
+            print(f"[main] 麦克风模块不可用: {e}")
             return False
 
     # ── 模型预加载 ──
@@ -134,6 +135,16 @@ class Plugin:
 
     # ── ASR 消费 ──
 
+    async def _mic_status_reader(self):
+        """转发麦克风线程的状态消息到 DGHub 日志。"""
+        loop = asyncio.get_event_loop()
+        while not self._done:
+            try:
+                level, msg = await loop.run_in_executor(None, self.mic_status.get)
+            except Exception:
+                break
+            await self._log(level, msg)
+
     async def _consumer(self):
         loop = asyncio.get_event_loop()
         while not self._done:
@@ -152,6 +163,9 @@ class Plugin:
                 continue
             if not text:
                 continue
+
+            if self.cfg.get("log_recognized_text", True):
+                await self._log("info", f"识别: {text!r}")
 
             hits = match(
                 text,
@@ -235,8 +249,9 @@ class Plugin:
                 # 启动麦克风
                 self._load_mic()
 
-                # 启动 ASR 消费
+                # 启动 ASR 消费 + 麦克风状态转发
                 consumer = asyncio.create_task(self._consumer())
+                status_reader = asyncio.create_task(self._mic_status_reader())
                 await self._log("info", "插件已就绪")
 
                 try:
@@ -249,9 +264,18 @@ class Plugin:
                         self.q.put_nowait(None)
                     except queue.Full:
                         pass
+                    try:
+                        self.mic_status.put_nowait(("", ""))
+                    except queue.Full:
+                        pass
                     consumer.cancel()
+                    status_reader.cancel()
                     try:
                         await consumer
+                    except asyncio.CancelledError:
+                        pass
+                    try:
+                        await status_reader
                     except asyncio.CancelledError:
                         pass
 

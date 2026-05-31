@@ -20,11 +20,19 @@ MIN_UTTER_MS    = 250
 
 class MicCapture(threading.Thread):
 
-    def __init__(self, utter_q: queue.Queue, get_cfg):
+    def __init__(self, utter_q: queue.Queue, get_cfg, status_q: queue.Queue | None = None):
         super().__init__(daemon=True, name="MicCapture")
-        self.utter_q = utter_q
-        self.get_cfg = get_cfg
-        self._stop   = threading.Event()
+        self.utter_q  = utter_q
+        self.status_q = status_q
+        self.get_cfg  = get_cfg
+        self._stop    = threading.Event()
+
+    def _status(self, level: str, msg: str):
+        if self.status_q is not None:
+            try:
+                self.status_q.put_nowait((level, msg))
+            except queue.Full:
+                pass
 
     def stop(self):
         self._stop.set()
@@ -52,8 +60,7 @@ class MicCapture(threading.Thread):
             import numpy as np
             import sounddevice as sd
         except ImportError as e:
-            print(f"[mic] 缺少依赖，无法启动: {e}")
-            print("[mic] 请运行: pip install numpy sounddevice")
+            self._status("error", f"麦克风缺少依赖: {e}")
             return
 
         device = self._pick_device(sd)
@@ -61,10 +68,10 @@ class MicCapture(threading.Thread):
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
                                 dtype="float32", blocksize=BLOCK_SAMPLES,
                                 device=device) as stream:
-                print(f"[mic] 已打开，{SAMPLE_RATE}Hz，每帧{BLOCK_MS}ms")
+                self._status("ok", f"麦克风已启动, {SAMPLE_RATE}Hz")
                 self._loop(stream, np)
-        except Exception:
-            print("[mic] 采集线程异常退出：")
+        except Exception as e:
+            self._status("error", f"麦克风采集异常: {e}")
             traceback.print_exc()
 
     def _loop(self, stream, np):
