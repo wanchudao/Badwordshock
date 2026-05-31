@@ -41,6 +41,14 @@ class ASREngine:
 
     def _load_model(self, model_name: str):
         from faster_whisper import WhisperModel
+        import sys, os
+
+        # PyInstaller 打包后：将 _internal 加入 DLL 搜索路径，确保 cublas 可加载
+        if getattr(sys, 'frozen', False):
+            internal = os.path.join(os.path.dirname(sys.executable), "_internal")
+            if os.path.isdir(internal):
+                os.add_dll_directory(internal)
+
         try:
             m = WhisperModel(model_name, device="cuda", compute_type="float16")
             self._on_gpu = True
