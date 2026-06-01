@@ -50,6 +50,9 @@ class ASREngine:
                 c2_dir = os.path.join(internal, "ctranslate2")
                 if os.path.isdir(c2_dir):
                     os.add_dll_directory(c2_dir)
+                tl_dir = os.path.join(internal, "torch", "lib")
+                if os.path.isdir(tl_dir):
+                    os.add_dll_directory(tl_dir)
 
         from faster_whisper import WhisperModel
 

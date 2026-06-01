@@ -8,10 +8,7 @@ datas += collect_data_files('faster_whisper')
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[
-        ('C:/Users/Max/AppData/Roaming/Python/Python311/site-packages/torch/lib/cublas64_12.dll', '.'),
-        ('C:/Users/Max/AppData/Roaming/Python/Python311/site-packages/torch/lib/cudart64_12.dll', '.'),
-    ],
+    binaries=[],
     datas=datas,
     hiddenimports=['faster_whisper', 'numpy', 'sounddevice'],
     hookspath=[],
@@ -42,9 +39,8 @@ exe = EXE(
 )
 coll = COLLECT(
     exe,
-    # 过滤 collect_data_files('faster_whisper') 拖入的冗余 torch/lib DLL
-    [(n, p, t) for n, p, t in a.binaries if not n.replace('\\', '/').startswith('torch/lib/')],
-    [(n, p, t) for n, p, t in a.datas    if not n.replace('\\', '/').startswith('torch/lib/')],
+    a.binaries,
+    a.datas,
     strip=False,
     upx=True,
     upx_exclude=[],

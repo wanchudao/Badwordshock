@@ -24,6 +24,9 @@ if getattr(sys, 'frozen', False):
         _c2 = os.path.join(_internal, "ctranslate2")
         if os.path.isdir(_c2):
             os.add_dll_directory(_c2)
+        _tl = os.path.join(_internal, "torch", "lib")
+        if os.path.isdir(_tl):
+            os.add_dll_directory(_tl)
 
 # ── 1. 从 manifest.json 读取完整 manifest ──
 def _read_manifest():
