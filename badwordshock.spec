@@ -1,7 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files
 
 datas = collect_dynamic_libs('ctranslate2')
+datas += collect_data_files('faster_whisper')
 
 
 a = Analysis(
