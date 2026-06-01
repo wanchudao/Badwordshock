@@ -16,6 +16,15 @@ import queue
 HERE = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+# ── PyInstaller 打包后：提前设置 DLL 搜索路径（必须在任何 ctranslate2 相关 import 之前）──
+if getattr(sys, 'frozen', False):
+    _internal = os.path.join(HERE, "_internal")
+    if os.path.isdir(_internal):
+        os.add_dll_directory(_internal)
+        _c2 = os.path.join(_internal, "ctranslate2")
+        if os.path.isdir(_c2):
+            os.add_dll_directory(_c2)
+
 # ── 1. 从 manifest.json 读取完整 manifest ──
 def _read_manifest():
     path = os.path.join(HERE, "manifest.json")

@@ -40,10 +40,9 @@ class ASREngine:
     # ── 模型加载 ──
 
     def _load_model(self, model_name: str):
-        from faster_whisper import WhisperModel
         import sys, os
 
-        # PyInstaller 打包后：将 _internal 及其 ctranslate2 子目录加入 DLL 搜索路径
+        # PyInstaller 打包后：必须在 import faster_whisper 之前设置 DLL 搜索路径
         if getattr(sys, 'frozen', False):
             internal = os.path.join(os.path.dirname(sys.executable), "_internal")
             if os.path.isdir(internal):
@@ -51,6 +50,8 @@ class ASREngine:
                 c2_dir = os.path.join(internal, "ctranslate2")
                 if os.path.isdir(c2_dir):
                     os.add_dll_directory(c2_dir)
+
+        from faster_whisper import WhisperModel
 
         try:
             m = WhisperModel(model_name, device="cuda", compute_type="float16")
