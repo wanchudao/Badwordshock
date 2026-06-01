@@ -87,6 +87,7 @@
           ]},
         { "key": "asr_beam_size", "type": "number", "label": "Beam Size",    "default": 5, "min": 1, "max": 10, "step": 1 },
         { "key": "use_anti_censor_prompt", "type": "bool", "label": "反审查 Prompt", "default": true, "description": "避免 Whisper 把脏话识别成委婉词" },
+        { "key": "asr_vad_filter", "type": "bool", "label": "faster-whisper VAD", "default": true, "description": "Silero VAD 二次过滤（关闭可测 Whisper 推理耗时）" },
         { "key": "preload_model", "type": "bool", "label": "启动时预加载模型", "default": true },
         { "key": "vad_threshold", "type": "number", "label": "VAD 音量阈值（RMS）", "default": 0.005, "min": 0.001, "max": 0.2, "step": 0.001 },
         { "key": "mic_device",    "type": "text",   "label": "麦克风设备名（留空=默认）", "default": "" }

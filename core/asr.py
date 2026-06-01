@@ -86,29 +86,32 @@ class ASREngine:
     def transcribe(self, audio) -> str:
         """audio: numpy float32 数组, 16kHz 单声道。返回识别文本。"""
         import numpy as np
+        import time
         self._ensure_model()
 
         lang      = self.config.get("asr_language", "zh")
         beam      = int(self.config.get("asr_beam_size", 5))
         use_prompt = self.config.get("use_anti_censor_prompt", True)
         prompt    = _PROMPTS.get(lang) if use_prompt else None
+        use_vad   = self.config.get("asr_vad_filter", True)  # 可关闭以隔离耗时
 
         kwargs = {
             "beam_size": beam,
-            "vad_filter": True,
-            "vad_parameters": {"min_silence_duration_ms": 300},
+            "vad_filter": use_vad,
         }
+        if use_vad:
+            kwargs["vad_parameters"] = {"min_silence_duration_ms": 300}
         if lang and lang != "auto":
             kwargs["language"] = lang
         if prompt:
             kwargs["initial_prompt"] = prompt
 
         audio = audio.astype(np.float32)
+        t0 = time.perf_counter()
         segments, info = self._model.transcribe(audio, **kwargs)
+        t1 = time.perf_counter()
+
         text = "".join(seg.text for seg in segments).strip()
-        if self.config.get("log_recognized_text", True):
-            lp = getattr(info, "language", "?")
-            pp = getattr(info, "language_probability", 0)
-            gpu = "GPU" if self._on_gpu else "CPU"
-            print(f"[asr] {text!r} | 语言:{lp}({pp:.2f}) | {self._model_name} | {gpu}")
+        gpu = "GPU" if self._on_gpu else "CPU"
+        print(f"[asr] 耗时 {t1-t0:.2f}s | VAD={'ON' if use_vad else 'OFF'} | {gpu} | {self._model_name} | {text!r}")
         return text
