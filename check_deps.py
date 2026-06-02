@@ -191,29 +191,66 @@ def check_network():
             warn(f"网络: {label} ({url}) 不可达 — 首次启动下载模型可能失败")
 
 
+def _try_nvidia_smi():
+    """通过 nvidia-smi 检测 NVIDIA 驱动和 GPU 型号（不依赖任何 Python 包）。
+    返回 (gpu_name, vram_gb) 或 (None, None)。"""
+    import subprocess
+    try:
+        # --query-gpu=name,memory.total --format=csv,noheader 跨版本兼容
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+            timeout=10, encoding="utf-8", errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except Exception:
+        return None, None
+
+    for line in out.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.split(",")]
+        name = parts[0] if len(parts) >= 1 else line
+        try:
+            vram = float(parts[1]) / 1024.0 if len(parts) >= 2 else None
+        except ValueError:
+            vram = None
+        return name, vram
+    return None, None
+
+
 def check_gpu():
-    """检测 CUDA GPU（需要 torch 已安装）。"""
+    """检测 CUDA GPU。
+
+    分两层：
+    1. nvidia-smi（硬件层）→ ASR 引擎 (CTranslate2) 可直接用 GPU
+    2. torch.cuda（PyTorch 层）→ AI 判断 (local_llm) 可用 GPU
+    """
+    gpu_name, vram = _try_nvidia_smi()
+
+    if gpu_name is None:
+        info("GPU: 未检测到 NVIDIA 显卡 — ASR 将回退 CPU 模式（也可用，稍慢）")
+        return
+
+    # 硬件层：GPU 存在 → CTranslate2 可直接利用
+    vram_str = f"{vram:.1f} GB VRAM, " if vram is not None else ""
+    ok(f"GPU: {gpu_name} ({vram_str}ASR 引擎可用 GPU 加速)")
+
+    # PyTorch 层：检查 torch.cuda（仅 AI 判断的 local_llm 需要）
     try:
         importlib.import_module("torch")
     except ImportError:
-        info("GPU 检测跳过（torch 未安装）")
+        info("  PyTorch 未安装 — 不影响 ASR，仅 local_llm 后端需要")
         return
 
     try:
         import torch
         if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
-            try:
-                props = torch.cuda.get_device_properties(0)
-                vram = props.total_mem / (1024 ** 3)
-                vram_str = f"{vram:.1f} GB VRAM, "
-            except Exception:
-                vram_str = ""
-            ok(f"GPU: {gpu_name} ({vram_str}ASR 将使用 GPU 加速)")
+            ok(f"  PyTorch CUDA: 可用（AI local_llm 后端可 GPU 加速）")
         else:
-            info("GPU: 无可用 CUDA 设备 — ASR 将回退 CPU 模式（也可用，稍慢）")
+            info(f"  PyTorch CUDA: 不可用 — AI 判断的 local_llm 后端将回退 CPU")
     except Exception as e:
-        info(f"GPU: 检测异常 — {e}")
+        info(f"  PyTorch CUDA: 检测异常 — {e}")
 
 
 def check_env():
@@ -319,5 +356,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # 双击运行时防止窗口一闪而过，方便截图/复制文字发给对方
-    input("\n按 Enter 键退出...")
+    try:
+        input("\n按 Enter 键退出...")
+    except (EOFError, OSError):
+        pass  # 非交互环境（管道/CI）静默退出
