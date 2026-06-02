@@ -219,38 +219,77 @@ def _try_nvidia_smi():
     return None, None
 
 
+def _check_ctranslate2_cuda() -> str | None:
+    """验证 CTranslate2 是否真能调用 CUDA（不依赖 nvidia-smi）。
+
+    返回 None = ctranslate2 未安装 / 无法检测；
+    返回 "ok" = CUDA 可用；
+    返回其他字符串 = 失败原因。
+    """
+    try:
+        import ctranslate2
+    except ImportError:
+        return None  # ctranslate2 未安装（应被 faster-whisper 安装）
+    except Exception as e:
+        return f"ctranslate2 加载失败: {e}"
+
+    try:
+        types = ctranslate2.get_supported_compute_types("cuda")
+        # CPU-only 构建只返回 ["int8"]；CUDA 构建返回 ["int8", "float16", ...]
+        if any(t in types for t in ("float16", "int8_float16", "float32")):
+            return "ok"
+        else:
+            return f"仅支持 CPU 计算类型: {types}（可能安装了 CPU-only wheel）"
+    except Exception as e:
+        return f"CUDA 查询失败: {e}"
+
+
 def check_gpu():
     """检测 CUDA GPU。
 
-    分两层：
-    1. nvidia-smi（硬件层）→ ASR 引擎 (CTranslate2) 可直接用 GPU
-    2. torch.cuda（PyTorch 层）→ AI 判断 (local_llm) 可用 GPU
+    分三层：
+    1. nvidia-smi（硬件层）— 驱动 & 显卡是否存在
+    2. CTranslate2 CUDA（运行时层）— ASR 引擎能否实际调用 CUDA
+    3. torch.cuda（PyTorch 层）— AI 判断 local_llm 能否用 GPU
     """
     gpu_name, vram = _try_nvidia_smi()
 
-    if gpu_name is None:
-        info("GPU: 未检测到 NVIDIA 显卡 — ASR 将回退 CPU 模式（也可用，稍慢）")
-        return
-
-    # 硬件层：GPU 存在 → CTranslate2 可直接利用
-    vram_str = f"{vram:.1f} GB VRAM, " if vram is not None else ""
-    ok(f"GPU: {gpu_name} ({vram_str}ASR 引擎可用 GPU 加速)")
-
-    # PyTorch 层：检查 torch.cuda（仅 AI 判断的 local_llm 需要）
+    # ── 第 3 层先跑：PyTorch CUDA（独立于前两层）──
+    torch_cuda_ok = False
     try:
         importlib.import_module("torch")
     except ImportError:
         info("  PyTorch 未安装 — 不影响 ASR，仅 local_llm 后端需要")
+    else:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                ok(f"  PyTorch CUDA: 可用（AI local_llm 后端可 GPU 加速）")
+                torch_cuda_ok = True
+            else:
+                info(f"  PyTorch CUDA: 不可用 — AI 判断的 local_llm 后端将回退 CPU")
+        except Exception as e:
+            info(f"  PyTorch CUDA: 检测异常 — {e}")
+
+    # ── 第 1 层：硬件 ──
+    if gpu_name is None:
+        info("GPU: 未检测到 NVIDIA 显卡 — ASR 将回退 CPU 模式（也可用，稍慢）")
         return
 
-    try:
-        import torch
-        if torch.cuda.is_available():
-            ok(f"  PyTorch CUDA: 可用（AI local_llm 后端可 GPU 加速）")
-        else:
-            info(f"  PyTorch CUDA: 不可用 — AI 判断的 local_llm 后端将回退 CPU")
-    except Exception as e:
-        info(f"  PyTorch CUDA: 检测异常 — {e}")
+    vram_str = f"{vram:.1f} GB VRAM, " if vram is not None else ""
+
+    # ── 第 2 层：CTranslate2 CUDA 运行时检测 ──
+    c2_status = _check_ctranslate2_cuda()
+    if c2_status is None:
+        # ctranslate2 没安装 → 说明 faster_whisper 也没装 → 先报 GPU 存在，依赖问题在 §2 已报告
+        ok(f"GPU: {gpu_name} ({vram_str}硬件就绪)")
+        info("  CTranslate2 未安装（faster-whisper 缺失），安装后可 GPU 加速")
+    elif c2_status == "ok":
+        ok(f"GPU: {gpu_name} ({vram_str}CTranslate2 CUDA 可用 — ASR 将 GPU 加速)")
+    else:
+        warn(f"GPU: {gpu_name} ({vram_str}硬件就绪但 CTranslate2 无法使用 CUDA)")
+        warn(f"  原因: {c2_status}")
+        info("  ASR 将回退 CPU。常见修复：重装 faster-whisper（pip install --force-reinstall faster-whisper）")
 
 
 def check_env():
@@ -266,6 +305,46 @@ def check_env():
 
     info(f"  DGHUB_HOST = {host}")
     info(f"  DGHUB_PORT = {port}")
+
+
+def check_pip():
+    """检测 pip 是否可用（安装/修复依赖需要）。"""
+    import subprocess
+    try:
+        out = subprocess.check_output(
+            [sys.executable, "-m", "pip", "--version"],
+            timeout=10, encoding="utf-8", errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        ver = out.strip().split()[1] if len(out.strip().split()) > 1 else out.strip()
+        ok(f"pip: {ver}")
+    except FileNotFoundError:
+        fail("pip: 未找到 — 无法安装依赖，请检查 Python 是否完整安装")
+    except subprocess.CalledProcessError:
+        fail("pip: 模块存在但运行失败 — Python 安装可能损坏")
+    except Exception as e:
+        warn(f"pip: 检测异常 — {e}")
+
+
+def check_disk_space():
+    """检测 Whisper 模型缓存所在驱动器是否有足够空间（模型 ~1.5GB）。"""
+    import shutil
+    # huggingface 缓存目录（与 faster-whisper 默认下载位置一致）
+    cache_dir = os.environ.get("HF_HOME", os.path.join(os.path.expanduser("~"), ".cache", "huggingface"))
+    drive = os.path.splitdrive(cache_dir)[0] or os.path.splitdrive(os.getcwd())[0] or "C:"
+    drive = drive + "\\" if sys.platform == "win32" else "/"
+
+    try:
+        usage = shutil.disk_usage(drive)
+        free_gb = usage.free / (1024 ** 3)
+        if free_gb >= 5.0:
+            ok(f"磁盘: {drive} 可用 {free_gb:.1f} GB — 足够下载模型")
+        elif free_gb >= 2.0:
+            warn(f"磁盘: {drive} 仅剩 {free_gb:.1f} GB — Whisper 模型需 ~1.5GB，所剩不多")
+        else:
+            fail(f"磁盘: {drive} 仅剩 {free_gb:.1f} GB — 不足以下载 Whisper 模型（需 ~1.5GB）")
+    except Exception as e:
+        info(f"磁盘: 无法检测 {drive} 剩余空间 — {e}")
 
 
 def check_core_imports():
@@ -309,28 +388,34 @@ def main():
     section("1. Python 版本")
     check_python()
 
-    section("2. 必需依赖 (pip install)")
+    section("2. pip 可用性")
+    check_pip()
+
+    section("3. 必需依赖 (pip install)")
     check_required_packages()
 
-    section("3. 可选依赖 — AI 判断 (pip install)")
+    section("4. 可选依赖 — AI 判断 (pip install)")
     check_optional_packages()
 
-    section("4. 文件完整性")
+    section("5. 文件完整性")
     check_files()
 
-    section("5. 模块加载")
+    section("6. 模块加载")
     check_core_imports()
 
-    section("6. 麦克风")
+    section("7. 麦克风")
     check_microphone()
 
-    section("7. 网络连通性")
+    section("8. 网络连通性")
     check_network()
 
-    section("8. GPU / CUDA")
+    section("9. 磁盘空间")
+    check_disk_space()
+
+    section("10. GPU / CUDA")
     check_gpu()
 
-    section("9. 环境变量")
+    section("11. 环境变量")
     check_env()
 
     # ── 总结 ──
