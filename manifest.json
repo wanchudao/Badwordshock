@@ -1,7 +1,7 @@
 {
   "id": "badwordshock",
   "name": "说脏话会被电！",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "sdk": "1",
   "author": "wanchudao",
   "description": "麦克风实时监听，说脏话立刻被电一下。支持词库匹配、变体兼容、AI 智能判断。",
